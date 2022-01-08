@@ -1,0 +1,26 @@
+{
+    "id": "D10A0A08",
+    "path": "~/Desktop/gpvolatility/R/rapf_point_estimate.R",
+    "project_path": "R/rapf_point_estimate.R",
+    "type": "r_source",
+    "hash": "3600234642",
+    "contents": "",
+    "dirty": false,
+    "created": 1641483831659.0,
+    "source_on_save": false,
+    "relative_order": 8,
+    "properties": {
+        "source_window_id": "",
+        "Source": "Source",
+        "cursorPosition": "11,76",
+        "scrollLine": "0"
+    },
+    "folds": "",
+    "lastKnownWriteTime": 1641047643,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1641047643,
+    "read_only": false,
+    "read_only_alternatives": []
+}

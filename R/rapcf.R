@@ -1,0 +1,124 @@
+
+rapcf <- function( y,
+                   n_state_lags = 1,
+                   n_observed_lags = 1,
+                   n_covar_pars = 3,
+                   mean_fun = mean_rapcf,
+                   covariance_fun = covariance_rapcf,
+                   n_particles = 100,
+                   lambda = 0.5,
+                   burn_in = max( ceiling(0.1* length(y)), 10 )#,
+                   # add initial parameters if not random
+                   # observation_likelihood_fun
+                   ) {
+
+  max_lags = max( n_observed_lags, n_state_lags )
+  # burn_in -
+  # initialize states
+  states <- matrix( 0, nrow = length(y), ncol = n_particles )
+  states[seq_len(burn_in+max_lags),] <- log( rnorm( (burn_in + max_lags) * n_particles,
+                                               mean = 0,
+                                               sd = stats::sd(y[seq_len(burn_in)]) )^2)
+  # initialize particle hyper-parameters
+  # fix hyperparameters for now - hence the 5
+  # since this is easy to overlook, we store steps as the first array dimension
+  # and indexing into it yields a matrix where particles are rows and parameters are
+  # columns
+
+  n_pars = n_state_lags + n_observed_lags + n_covar_pars
+  particle_parameters = array( NA, dim = c( length(y), n_particles, n_pars ) )
+  particle_parameters[seq_len(burn_in+max_lags+1),
+                      seq_len(n_particles),] = rnorm( (burn_in+max_lags+1) * n_particles * n_pars)
+
+  weights <- matrix( 1/n_particles, nrow = length(y) - 1, ncol = n_particles )
+  pred_likelihood <- matrix(NA, nrow = length(y)- burn_in - max_lags - 1, ncol = n_particles)
+    # particle filter loop
+    for( step in (burn_in+1+max_lags):(length(y) - 1) ) {
+      # cat(step, '\n')
+
+      previous_density = weights[ step - 1,]
+      # get previous parameters from particle array
+      previous_parameters = particle_parameters[step - 1,,]
+
+      # shrink towards the mean using a discounting factor lambda - kind of resembles ad-hoc
+      # exponential smoothing, but if it works, it aint broken :)
+      parameter_estimates = rapf_point_estimate( previous_parameters,
+                                                 previous_density,
+                                                 lambda = lambda )
+      # turn states and x into a particle data structure so its easier to pass along?
+      particles = particle_data( matrix( states[ 1:(step-1), ],
+                                         ncol = n_particles),
+                                 # observed volatility
+                                 y[ 1:(step-1) ],
+                                 state_lags = n_state_lags,
+                                 observed_lags = n_observed_lags,
+                                 parameter_estimates )
+      # turn states and x into a particle data structure so its easier to pass along?
+      # samples of state from posterior gp for each particle
+      states_samples = gp_predict_particles( particles, mean_fun, covariance_fun )
+      # pdfs on expected
+      #   # here we need to get model densities - ie. using either mnormt::dmnorm for normal or
+      #   # mnormt::dmt for multivariate T dist
+      m_density_mu = rapcf_density_fun( y[step], states_samples, transform = exp )
+      # return(list(m_density_mu, previous_density))
+      g = m_density_mu + previous_density
+      # resample using importance weights
+      # first normalize the weights
+      new_weights = normalize( g )
+      # cat( new_weights, "\n" )
+      # get indices for new weights
+      weight_indices = resample( new_weights )
+      # cat(weight_indices, "\n")
+      # Propage importance sampled particles
+      states[ 1:(step-1), ] = states[ 1:(step-1), weight_indices ]
+      # find sd of hyperparameters for jitter
+      parameter_sd <- apply( previous_parameters, 2, sd)
+      # generate new hyperparameters
+      new_parameters <- mnormt::rmnorm( n = n_particles,
+                                        varcov = (1-(lambda^2)) * diag( parameter_sd )) +
+        particle_parameters[step - 1,,]
+
+      # propose new log variances
+      particles = particle_data( matrix( states[ 1:step, ],
+                                         ncol = n_particles),
+                                 # same as a bit higher
+                                 y[ 1:step ],
+                                 state_lags = n_state_lags,
+                                 observed_lags = n_observed_lags,
+                                 parameter_estimates )
+      new_states = gp_predict_particles( particles, mean_fun, covariance_fun )
+
+      # calculate observation probability on new states
+      m_density = rapcf_density_fun( y[step], new_states, transform = exp )
+      # adjust for proposal density
+      weights[ step,] = m_density - m_density_mu[weight_indices]
+      # weights[step,] = normalize(weights[step,])
+      # cat(weights[step,],"\n")
+      # store parameters
+      particle_parameters[step,,] = new_parameters
+      # store states
+      states[step,] = new_states
+      # one step forward prediction
+      particles = particle_data( matrix( states[ 1:step, ],
+                                         ncol = n_particles),
+                                 # observed volatility
+                                 y[ 1:step ],
+                                 state_lags = n_state_lags,
+                                 observed_lags = n_observed_lags,
+                                 new_parameters )
+      predicted = gp_predict_particles( particles, mean_fun, covariance_fun )
+      # predictive lkelihood
+      pred_likelihood[step-burn_in-max_lags-1,] = rapcf_density_fun( y[step+1], predicted, transform = exp )
+    }
+  # )
+  return(list( states = states,
+               weights = weights[nrow(weights),],
+               particle_parameters = particle_parameters,
+               predictive_likelihood = pred_likelihood))
+}
+
+
+#   % predict 1- step forward
+#   predParts = gpVolPredFun(parts(1:t,:),data(1:t,:),gpStruct,newParams,isT);
+#   % prediction of t+1 at t
+#   predLikAll(t,:)=modelStruct.obsfunc(data(t+1,:),predParts,newParams,isT,modelStruct.transfunc);

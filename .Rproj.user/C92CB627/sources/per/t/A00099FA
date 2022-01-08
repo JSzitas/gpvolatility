@@ -1,0 +1,26 @@
+{
+    "id": "A00099FA",
+    "path": "~/Desktop/gpvolatility/R/gp.R",
+    "project_path": "R/gp.R",
+    "type": "r_source",
+    "hash": "4107842673",
+    "contents": "",
+    "dirty": false,
+    "created": 1641481428920.0,
+    "source_on_save": false,
+    "relative_order": 9,
+    "properties": {
+        "source_window_id": "",
+        "Source": "Source",
+        "cursorPosition": "38,44",
+        "scrollLine": "17"
+    },
+    "folds": "",
+    "lastKnownWriteTime": 1641481472,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1641481472824,
+    "read_only": false,
+    "read_only_alternatives": []
+}
