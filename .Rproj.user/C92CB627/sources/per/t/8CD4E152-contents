@@ -28,13 +28,13 @@ rapcf <- function( y,
   n_pars = n_state_lags + n_observed_lags + n_covar_pars
   particle_parameters = array( NA, dim = c( length(y), n_particles, n_pars ) )
   particle_parameters[seq_len(burn_in+max_lags+1),
-                      seq_len(n_particles),] = rnorm( (burn_in+max_lags+1) * n_particles * n_pars)
+                      seq_len(n_particles),] = runif( (burn_in+max_lags+1) * n_particles * n_pars)
 
   weights <- matrix( 1/n_particles, nrow = length(y) - 1, ncol = n_particles )
   pred_likelihood <- matrix(NA, nrow = length(y)- burn_in - max_lags - 1, ncol = n_particles)
     # particle filter loop
     for( step in (burn_in+1+max_lags):(length(y) - 1) ) {
-      # cat(step, '\n')
+      cat(step, '\n')
 
       previous_density = weights[ step - 1,]
       # get previous parameters from particle array

@@ -1,13 +1,13 @@
 
-covariance_rapcf <- function( X1, X2= NULL, parameters = list( length_scale = 10, gamma = 0.5 ) ) {
-  length_scale = parameters$length_scale
-  gamma = parameters$gamma
-  gamma * exp( -1/2 * squared_abs_distance(X1, X2)/length_scale^2  )
-}
-
-mean_rapcf <- function( X, parameters ) {
-  c(X %*% unlist(parameters))
-}
+# covariance_rapcf <- function( X1, X2= NULL, parameters = list( length_scale = 10, gamma = 0.5 ) ) {
+#   length_scale = parameters$length_scale
+#   gamma = parameters$gamma
+#   gamma * exp( -1/2 * squared_abs_distance(X1, X2)/length_scale^2  )
+# }
+#
+# mean_rapcf <- function( X, parameters ) {
+#   c(X %*% unlist(parameters))
+# }
 
 # x_test is a single test point used to generate the prediction -
 # for gpVol it is the last row of x_test

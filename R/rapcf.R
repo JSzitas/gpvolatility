@@ -6,7 +6,7 @@ rapcf <- function( y,
                    mean_fun = mean_rapcf,
                    covariance_fun = covariance_rapcf,
                    n_particles = 100,
-                   lambda = 0.5,
+                   lambda = 0.95,
                    burn_in = max( ceiling(0.1* length(y)), 10 )#,
                    # add initial parameters if not random
                    # observation_likelihood_fun
@@ -17,8 +17,9 @@ rapcf <- function( y,
   # initialize states
   states <- matrix( 0, nrow = length(y), ncol = n_particles )
   states[seq_len(burn_in+max_lags),] <- log( rnorm( (burn_in + max_lags) * n_particles,
-                                               mean = 0,
-                                               sd = stats::sd(y[seq_len(burn_in)]) )^2)
+                                                    mean = 0,
+                                                    sd = stats::sd(y[seq_len(burn_in)]) )^2
+  )
   # initialize particle hyper-parameters
   # fix hyperparameters for now - hence the 5
   # since this is easy to overlook, we store steps as the first array dimension
@@ -28,13 +29,16 @@ rapcf <- function( y,
   n_pars = n_state_lags + n_observed_lags + n_covar_pars
   particle_parameters = array( NA, dim = c( length(y), n_particles, n_pars ) )
   particle_parameters[seq_len(burn_in+max_lags+1),
-                      seq_len(n_particles),] = rnorm( (burn_in+max_lags+1) * n_particles * n_pars)
+                      seq_len(n_particles),] = runif( (burn_in+max_lags+1) * n_particles * n_pars, 0,5)
 
   weights <- matrix( 1/n_particles, nrow = length(y) - 1, ncol = n_particles )
-  pred_likelihood <- matrix(NA, nrow = length(y)- burn_in - max_lags - 1, ncol = n_particles)
+  pred_likelihood <- matrix(NA, nrow = length(y), ncol = n_particles)
     # particle filter loop
-    for( step in (burn_in+1+max_lags):(length(y) - 1) ) {
-      # cat(step, '\n')
+  plot.ts(y[(burn_in+1):length(y)])
+
+
+    for( step in (burn_in+1):(length(y) - 1) ) {
+      cat(step, '\n')
 
       previous_density = weights[ step - 1,]
       # get previous parameters from particle array
@@ -60,14 +64,30 @@ rapcf <- function( y,
       #   # here we need to get model densities - ie. using either mnormt::dmnorm for normal or
       #   # mnormt::dmt for multivariate T dist
       m_density_mu = rapcf_density_fun( y[step], states_samples, transform = exp )
+      # if( any(m_density_mu < 0) ) {
+      #   cat("Negative densities encountered - returning for debug.")
+      #   return(list( y[step], states_samples ))
+      # }
       # return(list(m_density_mu, previous_density))
+      # g = m_density_mu + previous_density
       g = m_density_mu + previous_density
       # resample using importance weights
+      cat(paste0("Unique densities: ", length(unique(g)), "\n"))
+      # if(length(unique(g))< 2) {
+      #   cat("Total particle sampler degradation - returning for debug.")
+      #   return( list( densities = weights[(burn_in+1):step,],
+      #                 states = states_samples, particles = particles, g = g ) )
+      # }
+      # return(g)
       # first normalize the weights
       new_weights = normalize( g )
       # cat( new_weights, "\n" )
       # get indices for new weights
-      weight_indices = resample( new_weights )
+      # return(new_weights)
+      weight_indices = resample_alright( new_weights )
+      # return(list(new_weights, weight_indices))
+      cat(paste0("Unique particles sampled: ", length(unique(weight_indices)), "\n"))
+      # weight_indices = resample_direct( new_weights )
       # cat(weight_indices, "\n")
       # Propage importance sampled particles
       states[ 1:(step-1), ] = states[ 1:(step-1), weight_indices ]
@@ -76,45 +96,53 @@ rapcf <- function( y,
       # generate new hyperparameters
       new_parameters <- mnormt::rmnorm( n = n_particles,
                                         varcov = (1-(lambda^2)) * diag( parameter_sd )) +
-        particle_parameters[step - 1,,]
+        parameter_estimates[weight_indices]
 
       # propose new log variances
-      particles = particle_data( matrix( states[ 1:step, ],
+      particles = particle_data( matrix( states[ 1:(step-1), ],
                                          ncol = n_particles),
                                  # same as a bit higher
-                                 y[ 1:step ],
+                                 y[ 1:(step-1) ],
                                  state_lags = n_state_lags,
                                  observed_lags = n_observed_lags,
-                                 parameter_estimates )
+                                 new_parameters )
       new_states = gp_predict_particles( particles, mean_fun, covariance_fun )
 
       # calculate observation probability on new states
       m_density = rapcf_density_fun( y[step], new_states, transform = exp )
       # adjust for proposal density
+      # this sometimes leads to negative weights - I think this is a bug
+      # the original code has -, but the paper says / - and this holds for
+      # logs, but not for transformed densities (imo) - so perhaps?
       weights[ step,] = m_density - m_density_mu[weight_indices]
+      # return(weights[step,])
       # weights[step,] = normalize(weights[step,])
       # cat(weights[step,],"\n")
       # store parameters
       particle_parameters[step,,] = new_parameters
       # store states
       states[step,] = new_states
-      # one step forward prediction
-      particles = particle_data( matrix( states[ 1:step, ],
-                                         ncol = n_particles),
-                                 # observed volatility
-                                 y[ 1:step ],
-                                 state_lags = n_state_lags,
-                                 observed_lags = n_observed_lags,
-                                 new_parameters )
-      predicted = gp_predict_particles( particles, mean_fun, covariance_fun )
-      # predictive lkelihood
-      pred_likelihood[step-burn_in-max_lags-1,] = rapcf_density_fun( y[step+1], predicted, transform = exp )
+      # plot current steps
+      plot.ts(y[(burn_in):length(y)])
+      lines(sqrt(exp(apply(states[(burn_in):step,], 1, mean))), col = "red" )
+      # # one step forward prediction
+      # particles = particle_data( matrix( states[ 1:step, ],
+      #                                    ncol = n_particles),
+      #                            # observed volatility
+      #                            y[ 1:step ],
+      #                            state_lags = n_state_lags,
+      #                            observed_lags = n_observed_lags,
+      #                            new_parameters )
+      # predicted = gp_predict_particles( particles, mean_fun, covariance_fun )
+      # # predictive lkelihood
+      # pred_likelihood[step,] = rapcf_density_fun( y[step+1], predicted, transform = exp )
     }
   # )
-  return(list( states = states,
-               weights = weights[nrow(weights),],
-               particle_parameters = particle_parameters,
-               predictive_likelihood = pred_likelihood))
+  return(list( states = states[(burn_in+1):nrow(states),],
+               weights = weights[(burn_in+1):nrow(weights),],#[nrow(weights),],
+               particle_parameters = particle_parameters[(burn_in+1):nrow(particle_parameters),,],
+               predictive_likelihood = pred_likelihood[(burn_in+1):nrow(pred_likelihood),],
+               y = y[(burn_in+1):length(y)]))
 }
 
 

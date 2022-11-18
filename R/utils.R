@@ -47,10 +47,13 @@ particle_data <- function( x_data,
 
 
 normalize <- function(x) {
-  x[ is.nan(x) ] <- 0
-  x <- exp(x) - max(x)
-  x[is.nan(x)] <- 0
-  x
+
+  n <- length(x)
+  # this should be an adjustment for numerical stability, apparently
+  weights <- exp(x - max(x))
+  weights <- weights/sum(weights)
+  weights[is.nan(weights)] <- 0
+  weights
 }
 
 effective_sample_size <- function(x) {
@@ -58,8 +61,52 @@ effective_sample_size <- function(x) {
 }
 
 resample <- function(x) {
-  len_x = length(x) 
+  len_x = length(x)
   sample( which( x > (runif(len_x, 0, 1)/len_x) ),
           size = len_x,
           replace = TRUE )
 }
+
+resample_alright <- function(x) {
+  sample( length(x),
+          size = length(x),
+          replace = TRUE,
+          prob = x
+          )
+}
+
+
+resample_direct <- function(x) {
+  N = length(x);
+  Q = cumsum(x);
+
+  T_ = rep(NA, N)
+  T_[1:N] = seq(from = 0, to = 1-(1/N), length.out = N) + runif(1)/N
+  T_[N] <- 1
+  # T_[N+1] = 1;
+
+  i=1;
+  j=1;
+
+  indx <- rep(NA, N)
+  while (i<N) {
+    tryCatch(
+      {
+        if (T_[i] < Q[j] ) {
+          indx[i] = j;
+          i=i+1;
+        }
+        else {
+          j=j+1;
+        }
+      },
+    error = function(e) {
+      dbg <<- list( T_, Q, i, j )
+      stop()
+    })
+  }
+  return(indx)
+}
+
+
+

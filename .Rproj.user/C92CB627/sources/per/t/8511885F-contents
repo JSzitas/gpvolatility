@@ -13,24 +13,30 @@ pkgload::load_all()
 
 get_symbols <- function( symbols, first_date = "2002-01-01")
 {
-  
+
   default <- future::plan()
   on.exit(future::plan(default), add = TRUE)
   future::plan("multicore");
-  
+
   symbols <- BatchGetSymbols::BatchGetSymbols( symbols,
                                                first.date = first_date,
                                                do.complete.data = TRUE,
                                                do.parallel = TRUE)
   symbols <- split( as.data.frame(symbols$df.tickers),
                     f = symbols$df.tickers$ticker)
-  
+
   return(symbols)
 }
 
 test <- get_symbols( "GOOG" )
-test <- (log( test[["GOOG"]][["price.close"]]) - log( dplyr::lag(test[["GOOG"]][["price.close"]]))) 
+test <- (log( test[["GOOG"]][["price.close"]]) - log( dplyr::lag(test[["GOOG"]][["price.close"]])))
 test <- na.omit(test)
 test <- (test - mean(test))/sd(test)
+
+vol_test <- rapcf( test[3000:3200] )
+
+
+
+
 
 
