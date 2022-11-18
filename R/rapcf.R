@@ -124,7 +124,7 @@ rapcf <- function( y,
       states[step,] = new_states
       # plot current steps
       plot.ts(y[(burn_in):length(y)])
-      lines(sqrt(exp(apply(states[(burn_in):step,], 1, mean))), col = "red" )
+      lines(apply(states[(burn_in):step,], 1, mean)+exp(1), col = "red" )
       # # one step forward prediction
       # particles = particle_data( matrix( states[ 1:step, ],
       #                                    ncol = n_particles),

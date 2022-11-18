@@ -23,7 +23,7 @@
 
 
 pkgload::load_all()
-vol_test <- rapcf( goog_test[2900:3750], burn_in = 400 )
+vol_test <- rapcf( goog_test[2000:3200], burn_in = 600 )
 
 
 
